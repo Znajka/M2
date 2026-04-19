@@ -41,14 +41,6 @@ This project is intended for learning and experimentation, not as production-gra
 - Python 3.7 or newer
 - Git (optional, for cloning)
 
-### Recommended: create and activate a virtual environment
-
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
 ### Clone the repository
 
 git clone https://github.com/Znajka/M2.git
