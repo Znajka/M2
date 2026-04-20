@@ -1,4 +1,4 @@
-import tkinter as tk
+﻿import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import cv2
 import numpy as np
@@ -7,15 +7,31 @@ from PIL import Image, ImageTk
 class ScramblerApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("M2 - Image Scrambler")
-        self.root.geometry("1350x850") 
+        self.root.title("M2 - Image Scrambler & Analyzer")
+        self.root.geometry("1550x600") 
 
         # Persistent Memory States
         self.img_orig = None    
-        self.img_work = None    # This is the "Working Canvas" that remembers every change
+        self.img_work = None    
 
-        # --- UI Header ---
-        controls = tk.Frame(root)
+        # --- Main Container ---
+        self.main_container = tk.Frame(root)
+        self.main_container.pack(fill="both", expand=True)
+
+        # Left Pane: Controls and Images
+        self.left_pane = tk.Frame(self.main_container)
+        self.left_pane.pack(side="left", fill="both", expand=True)
+
+        # Right Pane: Analysis Panel
+        self.right_pane = tk.LabelFrame(self.main_container, text="Statistical Analysis Panel", padx=10, pady=10)
+        self.right_pane.pack(side="right", fill="y", padx=15, pady=10)
+
+        self.analysis_box = tk.Text(self.right_pane, width=35, height=40, font=("Consolas", 10), bg="#f8f9fa", relief="flat")
+        self.analysis_box.pack(fill="y")
+        self.analysis_box.insert(tk.END, "Waiting for data...")
+
+        # --- UI Header (Left Side) ---
+        controls = tk.Frame(self.left_pane)
         controls.pack(side="top", pady=10)
 
         self.step_var = ttk.Combobox(controls, values=[
@@ -39,21 +55,26 @@ class ScramblerApp:
         self.s2_ui = ttk.Combobox(self.dynamic_frame, values=["Fisher-Yates (Manual)", "NumPy Built-in"], width=20)
         self.s2_ui.current(1)
 
-        btn_frame = tk.Frame(root)
+        # --- Buttons ---
+        btn_frame = tk.Frame(self.left_pane)
         btn_frame.pack(pady=5)
+        
         tk.Button(btn_frame, text="Load Image", command=self.load_image, width=12).grid(row=0, column=0, padx=5)
         tk.Button(btn_frame, text="SCRAMBLE", command=self.run_scramble, bg="#d4edda", width=12).grid(row=0, column=1, padx=5)
         tk.Button(btn_frame, text="UNSCRAMBLE", command=lambda: self.run_unscramble(False), bg="#f8d7da", width=12).grid(row=0, column=2, padx=5)
         tk.Button(btn_frame, text="UNSCRAMBLE (Key-1)", command=lambda: self.run_unscramble(True), bg="#fff3cd", width=18).grid(row=0, column=3, padx=5)
         tk.Button(btn_frame, text="Save Memory", command=self.save_results, width=12).grid(row=0, column=4, padx=5)
+        
+        # Blue Analysis Button
+        tk.Button(btn_frame, text="ANALYZE", command=self.run_detailed_analysis, bg="#007bff", fg="white", width=12).grid(row=0, column=5, padx=5)
 
-        self.log_frame = tk.LabelFrame(root, text="Algorithm Log")
+        self.log_frame = tk.LabelFrame(self.left_pane, text="Algorithm Log")
         self.log_frame.pack(fill="x", padx=40, pady=5)
         self.math_label = tk.Label(self.log_frame, text="", font=("Courier New", 11, "bold"), fg="#2c3e50")
         self.math_label.pack(pady=10)
 
         # --- 3 Preview Layout ---
-        self.display_frame = tk.Frame(root)
+        self.display_frame = tk.Frame(self.left_pane)
         self.display_frame.pack(pady=10)
         self.canv_orig = self.create_preview(self.display_frame, "1. Original", 0)
         self.canv_scram = self.create_preview(self.display_frame, "2. Last Scramble State", 1)
@@ -159,6 +180,39 @@ class ScramblerApp:
         img_tk = ImageTk.PhotoImage(img_pil)
         canvas.config(image=img_tk)
         canvas.image = img_tk
+
+    def run_detailed_analysis(self):
+        if self.img_orig is None or self.img_work is None:
+            messagebox.showwarning("Error", "Please load an image and perform an action first.")
+            return
+
+        # MSE Calculation
+        mse = np.mean((self.img_orig.astype(np.float32) - self.img_work.astype(np.float32)) ** 2)
+
+        # Correlation Calculation
+        def get_corr(img):
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32)
+            x = gray[:, :-1].flatten()
+            y = gray[:, 1:].flatten()
+            return np.corrcoef(x, y)[0, 1]
+
+        c_orig = get_corr(self.img_orig)
+        c_work = get_corr(self.img_work)
+
+        # Update Analysis Box
+        self.analysis_box.delete('1.0', tk.END)
+        self.analysis_box.insert(tk.END, "=== FINAL REPORT ===\n\n")
+        self.analysis_box.insert(tk.END, f"Difference (MSE):\n{mse:.2f}\n")
+        self.analysis_box.insert(tk.END, "-----------------------\n")
+        self.analysis_box.insert(tk.END, f"Correlation (Orig):\n{c_orig:.4f}\n")
+        self.analysis_box.insert(tk.END, f"Correlation (Work):\n{c_work:.4f}\n")
+        self.analysis_box.insert(tk.END, "-----------------------\n")
+        
+        status = "ENCRYPTED" if c_work < 0.1 else "READABLE"
+        self.analysis_box.insert(tk.END, f"Status: {status}\n")
+        
+        if mse > 1000 and c_work < 0.05:
+            self.analysis_box.insert(tk.END, "\nSuccess: High Diffusion!")
 
 if __name__ == "__main__":
     root = tk.Tk()
